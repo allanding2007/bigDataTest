@@ -11,36 +11,36 @@ from pyspark.streaming.kafka import KafkaUtils
 #import pyspark_cassandra
 #from pyspark_cassandra import streaming
 from datetime import datetime
+import json
+import redis
 
+def insert_redis(rdd):
+    print "collect rdd*********"
+    redis_conn = redis.StrictRedis("127.0.0.1", 6379, 5)
+    for i in rdd.collect():
+        print "The data is:++++++++++"
+        print i
+        redis_conn.set("streaming", i, 100)
+        print type(i)
+        data = json.loads(i)
+        print type(data)
+        print data
 
 sc = SparkContext(appName="spark_streaming")
 ssc = StreamingContext(sc, 5)
 
 topic = "fake_status"
 kafkaStream = KafkaUtils.createStream(ssc, "localhost:2181", "spark-streaming",{topic: 1})
-#kafkaStream = KafkaUtils.createDirectStream(ssc, [topic], {"bootstrap.servers":"localhost:9092"})
 
-raw = kafkaStream.flatMap(lambda kafkaS: [kafkaS])
+raw = kafkaStream.map(lambda stream_data: stream_data)
 time_now = datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S.%f')
-clean = raw.map(lambda xs: xs[1].split(","))
+clean = raw.map(lambda xs: xs[1])
 
-#my_row = clean.map(lambda x: {
-#          "testid": "test",
-#          "time1": x[1],
-#          "time2": time_now,
-#          "delta": (datetime.strptime(x[1], '%Y-%m-%d %H:%M:%S.%f') -\
-#                           datetime.strptime(time_now, '%Y-%m-%d\
-#                                             %H:%M:%S.%f')).microseconds,
-#})
-
-#my_row.pprint()
+#clean.pprint()
+raw.pprint()
 clean.pprint()
-
-print "The result is:"
-print "----------------------------------"
-#print my_row
-print clean
+clean.foreachRDD(insert_redis)
 
 ssc.start()             # Start the computation
 ssc.awaitTermination()  # Wait for the computation to
-terminate
+#terminate
